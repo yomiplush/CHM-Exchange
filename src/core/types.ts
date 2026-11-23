@@ -4,6 +4,7 @@ import type {
   CHM_EXCHANGE_PROTOCOL_VERSION,
   CHM_HOST_EXPORT_FORMAT,
 } from './constants.js';
+import type { PairedDeviceRegistryEntry } from './pairing/types.js';
 
 export type ExchangeBundleFormat = typeof CHM_EXCHANGE_FORMAT | typeof CHM_HOST_EXPORT_FORMAT;
 
@@ -71,6 +72,19 @@ export interface HostSigningIdentity {
 }
 
 /**
+ * Public-only descriptor of the local device identity (never root private key).
+ */
+export interface HostDeviceIdentity {
+  deviceIdHex: string;
+  deviceName: string;
+  publicKeyBase64Url: string;
+  fingerprintHex: string;
+  fingerprintShort: string;
+  storageMode: 'webcrypto-non-extractable' | 'noble-encrypted-seed';
+  createdAt?: string;
+}
+
+/**
  * Locally trusted artist key record managed by the host application.
  */
 export interface HostTrustedKey {
@@ -105,6 +119,8 @@ export interface ChmExchangeHostAdapter {
   getTrustStatus(publicKeyBase64Url: string): Promise<TrustStatusResult>;
   addTrustedKey(request: AddTrustedKeyRequest): Promise<HostTrustedKey>;
   removeTrustedKey(publicKeyBase64Url: string): Promise<void>;
+  getLocalDeviceIdentity?(): Promise<HostDeviceIdentity | null>;
+  listPairedDevices?(ownerFingerprintHex?: string): Promise<PairedDeviceRegistryEntry[]>;
 }
 
 export class ChmExchangeError extends Error {

@@ -6,7 +6,7 @@ interface BarcodeDetectorLike {
   detect(source: CanvasImageSource): Promise<Array<{ rawValue?: string }>>;
 }
 
-interface QrCameraScannerProps {
+export interface QrCameraScannerProps {
   startLabel: string;
   stopLabel: string;
   hint: string;

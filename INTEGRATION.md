@@ -1,6 +1,6 @@
 # Integration Guide — `@yomiplush/chm-exchange`
 
-CHM-Exchange is built as a standalone npm library with a strict separation between **protocol/UI (`CHM-Exchange`)** and **key custody/persistence (Host App)**.
+CHM-Exchange is built as a standalone npm library with a strict separation between **protocol/QR primitives (`CHM-Exchange`)** and **key custody/persistence/workflows (Host App)**.
 
 ---
 
@@ -59,6 +59,9 @@ export function createMyHostAdapter(): ChmExchangeHostAdapter {
     async getTrustStatus(publicKeyBase64Url) { /* ... */ },
     async addTrustedKey(request) { /* ... */ },
     async removeTrustedKey(publicKeyBase64Url) { /* ... */ },
+    // Optional CHM-DEVICE-PAIRING-v1 public projections:
+    async getLocalDeviceIdentity() { /* return HostDeviceIdentity | null (public metadata only) */ },
+    async listPairedDevices(ownerFingerprintHex) { /* return PairedDeviceRegistryEntry[] */ },
   };
 }
 ```
@@ -89,20 +92,19 @@ export function ExchangePage({ adapter, locale }: Props) {
 }
 ```
 
-### Supported Props
-- `adapter`: Required `ChmExchangeHostAdapter`.
-- `exchangeBaseUrl`: Target route for generated QR codes and `#key=` URLs (defaults to `https://certified-handmade.com/exchange`).
-- `locale`: `'en' | 'ja'` (defaults to `'en'`).
-- `messages`: Deep-partial `ChmExchangeMessages` override to customize copy or bridge host localization keys.
-- `theme`: Optional `ChmExchangeTheme` mapping directly to scoped `--chmx-*` CSS variables.
-- `initialTab`: `'share' | 'receive' | 'trusted'`.
-- `initialIdentityId`: Pre-select an author identity in Share view (e.g., from `/keys?identity=...`).
-- `initialInspectInput`: Pre-fill & auto-inspect a `#key=` URL, JSON, or raw Base64url public key (e.g., from `/verify`).
-- `emptyIdentitiesAction`: Optional React node (such as a link to `/keys`) rendered when the user has zero author identities.
-- `onTrustChanged`: Optional callback invoked after adding or removing a trusted key.
+---
+
+## 4. Integrating `CHM-DEVICE-PAIRING-v1` on `/devices`
+
+`@yomiplush/chm-exchange/core` and `@yomiplush/chm-exchange/react` expose all protocol & QR building blocks while keeping key custody on the host:
+
+1. **Host Device Custody:** Generate a per-device Ed25519 keypair in Web Crypto (`extractable: false`) or AES-GCM encrypted seed fallback, completely separate from Owner Root `authorKeys`.
+2. **Host Replay & Session Store:** Persist pending pairing requests (`pairingSessions`), consumed `requestId` + `nonce` values (`usedPairingNonces`), paired device registry entries (`pairedDevices`), and monotonic local revocations (`deviceRevocations`) in IndexedDB.
+3. **2-Step Pairing UI:** Reuse `<QrCodeDisplay />`, `<QrCameraScanner />`, `renderExchangeQrPng()`, and `decodeQrFromImageBytes()` from `@yomiplush/chm-exchange`, always requiring explicit user confirmation before approving a device or trusting an unverified Owner fingerprint.
+4. **Signed Snapshots:** Use `createSignedDeviceRegistrySnapshot()`, `serializeDeviceRegistryJson()`, `decodeAndVerifyDeviceRegistryInput()`, and `reconcileRegistrySnapshotImport()` for portable `.chdevreg.json` / `.chdevreg.cbor` backups that preserve known local revocations monotonically.
 
 ---
 
-## 4. Non-React Usage (CLI, Web Extensions, Other Frameworks)
+## 5. Non-React Usage (CLI, Web Extensions, Other Frameworks)
 
-Import `@yomiplush/chm-exchange/core` (zero React dependency) to encode/decode URLs, validate JSON bundles, verify SHA-256 fingerprints, render/decode QR PNGs, or run `createMemoryExchangeAdapter()`.
+Import `@yomiplush/chm-exchange/core` (zero React dependency) to encode/decode URLs, validate JSON bundles, verify SHA-256 fingerprints, render/decode QR PNGs, run `createMemoryExchangeAdapter()`, or encode/verify `CHM-DEVICE-PAIRING-v1` CBOR artifacts.

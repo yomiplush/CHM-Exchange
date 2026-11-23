@@ -7,3 +7,4 @@ export * from './core/bundle.js';
 export * from './core/exchangeUrl.js';
 export * from './core/qr.js';
 export * from './core/memoryAdapter.js';
+export * from './core/pairing/index.js';
