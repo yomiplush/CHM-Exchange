@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](./LICENSE)
 
-CHM-Exchange is the authoritative, open-source implementation of the Certified Handmade (`CHM`) public-key exchange protocol (`#key=`), **`CHM-DEVICE-PAIRING-v1`** (offline 2-step QR multi-device enrollment, revocation, and signed registry snapshots), QR toolkit, host-adapter boundary, and React exchange interface — **without servers, accounts, telemetry, or central authorities**.
+CHM-Exchange is the authoritative, open-source implementation of the Certified Handmade (`CHM`) public-key exchange protocol (`#key=`), **`CHM-DEVICE-PAIRING-v1`** (offline 2-step QR multi-device enrollment, out-of-band confirmation codes, revocation, and signed registry snapshots), QR toolkit, host-adapter boundary, and React exchange interface — **without servers, accounts, telemetry, or central authorities**.
 
 > **Cryptographic Boundary Notice:** A valid Ed25519 key or signature proves control of the matching private key — **never** real-world identity or human-made artwork authorship. Imported public keys and enrolling Owner keys always start **Unverified** until their SHA-256 fingerprint is confirmed out-of-band.
 
@@ -17,6 +17,7 @@ CHM-Exchange is the authoritative, open-source implementation of the Certified H
   - Deterministic RFC 8949 CBOR envelopes (`request`, `enrollment certificate`, `revocation notice`, `signed registry snapshot`) checked byte-for-byte on decode.
   - Domain-separated strict Ed25519 signatures (`zip215: false`, curve-point small-order & torsion checks).
   - Cryptographic request-to-certificate binding (`requestHash = SHA-256(envelope)` + 256-bit `nonce` + `requestId`) preventing cross-owner substitution, replay, and privilege escalation.
+  - Deterministic 8-character out-of-band confirmation code (`computePairingConfirmationCode`, `CHM-PAIR-CONFIRM1\0`) derived from `requestHash || nonce || devicePublicKey` so both devices detect MitM / QR substitution before approval.
   - Monotonic local revocation reconciliation preventing stale registry snapshot re-imports from un-revoking compromised/lost devices.
 - **Zero Private-Key Exposure**: Rejects private-key fields (`privateKey`, `seed`, `webCryptoPrivateKey`, `encryptedBackup`, `jwk`, etc.) recursively at every boundary.
 - **Host Compatibility**: Imports both `chm-exchange-public-key` (`v1`) bundles and Certified Handmade's `certified-handmade-public-key` (`v1`) JSON exports.
@@ -77,6 +78,7 @@ console.log(inspected.fingerprintShort); // CHM-XXXX-XXXX-XXXX-XXXX
 
 ```ts
 import {
+  computePairingConfirmationCode,
   createSignedPairingRequest,
   createSignedEnrollmentCertificate,
   verifyEnrollmentCertificateBinding,
@@ -93,9 +95,14 @@ const req = await createSignedPairingRequest({
 });
 const reqUrl = encodePairingRequestUrl(req, 'https://certified-handmade.com/devices');
 
-// Step 2 (Owner Root Device): parse QR, obtain explicit user consent, issue Enrollment Certificate
+// Step 2 (Owner Root Device): parse QR, compare out-of-band confirmation code, issue Enrollment Certificate
 const parsed = parsePairingQrInput(reqUrl);
 if (parsed.kind === 'pairing-request') {
+  const confirmCode = computePairingConfirmationCode({
+    requestHash: parsed.request.requestHash,
+    nonce: parsed.request.nonce,
+    devicePublicKey: parsed.request.devicePublicKey,
+  }); // e.g. "A7K9-M2P4" — verified visually against the new device screen
   const cert = await createSignedEnrollmentCertificate({
     request: parsed.request,
     ownerPublicKey,
@@ -135,14 +142,14 @@ export function ExchangeScreen() {
 CHM-Exchange/
 ├── src/
 │   ├── core/
-│   │   ├── pairing/   # CHM-DEVICE-PAIRING-v1 (CBOR, crypto, protocol, registry)
+│   │   ├── pairing/   # CHM-DEVICE-PAIRING-v1 (CBOR, crypto, protocol, registry, confirmationCode)
 │   │   └── ...        # Key exchange encoding, fingerprint, validation, QR, memory adapter
 │   ├── i18n/          # English & Japanese UI dictionaries
 │   ├── react/         # Scoped CSS, icons, QR SVG/camera components, ChmExchangeView
 │   ├── core.ts        # Framework-agnostic entry point
 │   ├── react.ts       # React UI entry point
 │   └── index.ts       # Combined barrel export
-├── tests/             # Unit, security, pairing protocol, QR round-trip, adapter, UI tests
+├── tests/             # Unit, security, pairing protocol, confirmation code, QR, adapter, UI tests
 ├── examples/          # Standalone CLI + React examples
 ├── SPEC.md            # Normative CHM-Exchange & CHM-DEVICE-PAIRING-v1 specification
 ├── SECURITY.md        # Threat model, trust boundaries & known limitations
@@ -150,7 +157,7 @@ CHM-Exchange/
 └── CONTRIBUTING.md    # Development workflow & testing
 ```
 
-CHM-Exchange is intentionally maintained separately from `yomiplush/hand-drawing-art-DRM-Toolkit`, which serves as the host application for artwork signing, private-key custody, IndexedDB persistence, `/devices` pairing & revocation UI, PWA offline caching, and Cloudflare Pages deployment.
+CHM-Exchange is intentionally maintained separately from `yomiplush/hand-drawing-art-DRM-Toolkit`, which serves as the host application for artwork signing, private-key custody, IndexedDB persistence, `/devices` pairing, revocation & opt-in decentralized Nostr sync (`CHM-SYNC-v1`), `/vault` local proof storage, PWA offline caching, and Cloudflare Pages deployment.
 
 ---
 

@@ -169,7 +169,16 @@ Cryptographically bound to the originating request via `requestHash = SHA-256(ca
 | `11` | `issuedAt` | `uint` | Unix seconds |
 | `12` | `requestExpiresAt` | `uint` | Must match request `expiresAt` |
 
-### 7.4 Device Revocation Notice Payload (`kind = 3`, CBOR Map Keys `1..8`)
+### 7.4 Out-of-Band Pairing Confirmation Code (`CHM-PAIR-CONFIRM1\0`)
+
+To detect QR substitution or relay/channel MitM attacks before finalizing device approval, both the **New Device** (pairing request screen and enrollment preview) and the **Owner Device** (approval dialog and certificate QR screen) deterministically compute an 8-character Crockford-style confirmation code (`23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, excluding ambiguous `0, 1, I, O`):
+
+```text
+digest = SHA-256("CHM-PAIR-CONFIRM1\0" || requestHash(32) || nonce(32) || devicePublicKey(32))
+code   = alphabet[digest[0..3] & 0x1F] + "-" + alphabet[digest[4..7] & 0x1F]   // e.g. "A7K9-M2P4"
+```
+
+### 7.5 Device Revocation Notice Payload (`kind = 3`, CBOR Map Keys `1..8`)
 
 | Key | Name | Type | Notes |
 |---|---|---|---|
@@ -184,11 +193,11 @@ Cryptographically bound to the originating request via `requestHash = SHA-256(ca
 
 Revocations are **locally monotonic**: re-importing an older signed registry snapshot MUST NOT un-revoke a device already marked `revoked` or `conflict-revoked` in local storage.
 
-### 7.5 Signed Registry Snapshot (`kind = 4`, `.chdevreg.json` / `.chdevreg.cbor`)
+### 7.6 Signed Registry Snapshot (`kind = 4`, `.chdevreg.json` / `.chdevreg.cbor`)
 
 Encodes an Owner-signed list of embedded canonical `SignedEnrollmentCertificate` envelopes and `SignedDeviceRevocationNotice` envelopes (`certificates`, `revocations`, monotonic `sequence`). Inner certificates and revocations are individually re-verified, owner-consistency checked, and reconciled monotonically on import.
 
-### 7.6 Pairing QR URLs & Tokens
+### 7.7 Pairing QR URLs & Tokens
 
 - Pairing Request URL / Token: `https://certified-handmade.com/devices#pair-req=<b64u>` or `chm-pair-req:<b64u>`
 - Enrollment Certificate URL / Token: `https://certified-handmade.com/devices#pair-cert=<b64u>` or `chm-pair-cert:<b64u>`
